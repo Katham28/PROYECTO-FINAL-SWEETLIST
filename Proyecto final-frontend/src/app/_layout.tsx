@@ -12,6 +12,7 @@ export default function RootLayout() {
       <Stack
         screenOptions={{
           headerTintColor: colores.blanco,
+          headerBackTitle: "Atrás",
           headerTitleStyle: { fontWeight: "bold", fontSize: 20 },
           headerBackground: () => (
             <LinearGradient
@@ -23,9 +24,12 @@ export default function RootLayout() {
           ),
         }}
       >
-        <Stack.Screen name="index" options={{ title: "SweetList-Main" }} />
-        <Stack.Screen name="crear-usuario" options={{ title: "SweetList-Users" }} />
-        <Stack.Screen name="pomodoro" options={{ title: "SweetList-Pomodoro" }} />
+        <Stack.Screen name="index" options={{ title: "Inicio" }} />
+        <Stack.Screen name="crear-usuario" options={{ title: "Crear cuenta" }} />
+        <Stack.Screen name="pomodoro" options={{ title: "Pomodoro" }} />
+        <Stack.Screen name="tags_list_edit" options={{ title: "Editar listas y etiquetas" }} />
+        <Stack.Screen name="task_edit" options={{ title: "Editar tarea" }} />
+        <Stack.Screen name="quick_add_task" options={{ title: "Añadir tarea" }} />
         <Stack.Screen
           name="menu"
           options={{ title: "SweetList", headerBackVisible: false, gestureEnabled: false }}

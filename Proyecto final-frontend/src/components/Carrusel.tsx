@@ -5,12 +5,12 @@ import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { colores, sombraRosa } from "@/tema";
 
 const diapositivas = [
-  { id: "uno", imagen: require("../../assets/images/carrusel/uno.jpg"), frase: "Keep moving forward." },
-  { id: "dos", imagen: require("../../assets/images/carrusel/dos.jpg"), frase: "Discipline beats motivation." },
-  { id: "tres", imagen: require("../../assets/images/carrusel/tres.jpg"), frase: "One task at a time." },
-  { id: "cuatro", imagen: require("../../assets/images/carrusel/cuatro.jpg"), frase: "Focus. Plan. Achieve." },
-  { id: "cinco", imagen: require("../../assets/images/carrusel/cinco.jpg"), frase: "Small steps, big results" },
-  { id: "seis", imagen: require("../../assets/images/carrusel/seis.jpg"), frase: "Work smart, not hard" },
+  { id: "uno", imagen: require("../../assets/images/carrusel/uno.jpg"), frase: "Sigue avanzando." },
+  { id: "dos", imagen: require("../../assets/images/carrusel/dos.jpg"), frase: "La disciplina supera a la motivación." },
+  { id: "tres", imagen: require("../../assets/images/carrusel/tres.jpg"), frase: "Una tarea a la vez." },
+  { id: "cuatro", imagen: require("../../assets/images/carrusel/cuatro.jpg"), frase: "Concéntrate. Planifica. Cumple tus metas." },
+  { id: "cinco", imagen: require("../../assets/images/carrusel/cinco.jpg"), frase: "Pequeños pasos, grandes resultados." },
+  { id: "seis", imagen: require("../../assets/images/carrusel/seis.jpg"), frase: "Trabaja con inteligencia y propósito." },
 ];
 
 const ALTO = 240;

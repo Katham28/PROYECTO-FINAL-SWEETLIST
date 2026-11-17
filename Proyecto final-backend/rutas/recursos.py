@@ -53,11 +53,24 @@ def crear_router(nombre: str, coleccion, Crear, Editar, Salida, orden: str):
         cambios = datos.model_dump(mode="json", exclude_unset=True)
         if cambios:
             await guardar(coleccion.update_one({"_id": doc["_id"]}, {"$set": cambios}))
+            if nombre in ("listas", "tags") and "nombre" in cambios and cambios["nombre"] != doc["nombre"]:
+                campo = "lista" if nombre == "listas" else "tag"
+                await db.tareas.update_many(
+                    {"usuario_id": db.oid(usuario_id), campo: doc["nombre"]},
+                    {"$set": {campo: cambios["nombre"]}},
+                )
         return db.a_json(await buscar(usuario_id, item_id))
 
     @router.delete("/{item_id}", status_code=204)
     async def borrar(usuario_id: str, item_id: str):
         doc = await buscar(usuario_id, item_id)
+        if nombre in ("listas", "tags"):
+            # La eliminación de un catálogo nunca elimina sus tareas ni sus pomodoros.
+            campo = "lista" if nombre == "listas" else "tag"
+            await db.tareas.update_many(
+                {"usuario_id": db.oid(usuario_id), campo: doc["nombre"]},
+                {"$set": {campo: ""}},
+            )
         await coleccion.delete_one({"_id": doc["_id"]})
         return Response(status_code=204)
 

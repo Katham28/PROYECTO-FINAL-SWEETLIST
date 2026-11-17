@@ -1,6 +1,6 @@
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, Vibration, View } from "react-native";
+import { Pressable, StyleSheet, Text, Vibration, View } from "react-native";
 
 import { api, tiempoBonito, type DuracionesPomodoro, type Tarea } from "@/api";
 import { Aviso, Banner, Opcion, Pantalla, Tarjeta } from "@/components/ui";
@@ -8,7 +8,7 @@ import { colores } from "@/tema";
 
 type Modo = "enfoque" | "descanso" | "largo";
 
-const NOMBRE_MODO: Record<Modo, string> = { enfoque: "Focus", descanso: "Short break", largo: "Long break" };
+const NOMBRE_MODO: Record<Modo, string> = { enfoque: "Enfoque", descanso: "Descanso corto", largo: "Descanso largo" };
 const COLOR_MODO: Record<Modo, string> = { enfoque: colores.rosa, descanso: "#20c997", largo: "#6f42c1" };
 const CAMPO_MODO: Record<Modo, keyof DuracionesPomodoro> = {
   enfoque: "pomodoro_enfoque_min",
@@ -84,7 +84,7 @@ export default function PantallaPomodoro() {
 
   const iniciar = () => {
     if (modo === "enfoque" && seleccion.length === 0) {
-      setError("Pick at least one task for this pomodoro.");
+      setError("Selecciona al menos una tarea para este pomodoro.");
       return;
     }
     const t = Date.now();
@@ -102,10 +102,10 @@ export default function PantallaPomodoro() {
 
   /** completo = se acabó el tiempo; si no, el usuario lo terminó antes (cuenta igual). */
   const terminar = async (completo: boolean) => {
-    if (Platform.OS !== "web") Vibration.vibrate(400);
+    Vibration.vibrate(400);
 
     if (modo !== "enfoque") {
-      setAviso("Break is over. Ready for the next pomodoro?");
+      setAviso("Terminó el descanso. Puedes iniciar el siguiente pomodoro.");
       reiniciar("enfoque", false);
       return;
     }
@@ -134,7 +134,7 @@ export default function PantallaPomodoro() {
             : t,
         ),
       );
-      setAviso(`🍅 +1 pomodoro (${tiempoBonito(segundos)}) on ${ids.length} task${ids.length > 1 ? "s" : ""}. Take a break!`);
+      setAviso(`Se añadió un pomodoro (${tiempoBonito(segundos)}) a ${ids.length} tarea${ids.length > 1 ? "s" : ""}. Es momento de descansar.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error");
     }
@@ -194,9 +194,9 @@ export default function PantallaPomodoro() {
         <View style={[estilos.circulo, { borderColor: `${color}33` }]}>
           <Text style={[estilos.reloj, { color }]}>{reloj(restanteMs)}</Text>
           <Text style={estilos.subReloj}>
-            {corriendo ? NOMBRE_MODO[modo] : transcurridoMs > 0 ? "Paused" : "Ready"}
+            {corriendo ? NOMBRE_MODO[modo] : transcurridoMs > 0 ? "En pausa" : "Listo"}
           </Text>
-          <Text style={estilos.contador}>🍅 × {completados}</Text>
+          <Text style={estilos.contador}>Pomodoros: {completados}</Text>
         </View>
 
         <View style={estilos.barra}>
@@ -205,21 +205,21 @@ export default function PantallaPomodoro() {
 
         <View style={estilos.botones}>
           <Boton
-            texto={corriendo ? "Pause" : transcurridoMs > 0 ? "Resume" : "Start"}
+            texto={corriendo ? "Pausar" : transcurridoMs > 0 ? "Reanudar" : "Iniciar"}
             color={color}
             onPress={corriendo ? pausar : iniciar}
           />
           {modo === "enfoque" ? (
             <>
               <Boton
-                texto="Finish"
+                texto="Terminar"
                 color={color}
                 contorno
                 desactivado={transcurridoMs < 1000}
                 onPress={() => terminar(false)}
               />
               <Boton
-                texto="Reset"
+                texto="Reiniciar"
                 color="#6c757d"
                 contorno
                 desactivado={transcurridoMs === 0}
@@ -227,29 +227,29 @@ export default function PantallaPomodoro() {
               />
             </>
           ) : (
-            <Boton texto="Skip break" color={color} contorno onPress={() => reiniciar("enfoque", false)} />
+            <Boton texto="Omitir descanso" color={color} contorno onPress={() => reiniciar("enfoque", false)} />
           )}
         </View>
         <Text style={estilos.ayuda}>
-          &quot;Finish&quot; ends the pomodoro early and still counts it with the time you worked.
+          Al pulsar Terminar, el pomodoro cuenta aunque lo finalices antes y se guarda el tiempo trabajado.
         </Text>
       </Tarjeta>
 
-      <Tarjeta titulo="Tasks for this pomodoro">
-        {pendientes.length === 0 && <Text style={estilos.vacio}>No pending tasks.</Text>}
+      <Tarjeta titulo="Tareas de este pomodoro">
+        {pendientes.length === 0 && <Text style={estilos.vacio}>No hay tareas pendientes.</Text>}
         {pendientes.map((t) => (
           <View key={t.id} style={estilos.tarea}>
             <View style={{ flex: 1 }}>
               <Opcion texto={t.titulo} activa={seleccion.includes(t.id)} onPress={() => alternar(t.id)} />
             </View>
             <Text style={estilos.tomates}>
-              🍅 {t.pomodoros ?? 0} · {tiempoBonito(t.segundos_invertidos ?? 0)}
+              {t.pomodoros ?? 0} pomodoros · {tiempoBonito(t.segundos_invertidos ?? 0)}
             </Text>
           </View>
         ))}
       </Tarjeta>
 
-      <Tarjeta titulo="Durations (minutes)">
+      <Tarjeta titulo="Duraciones (minutos)">
         {(["enfoque", "descanso", "largo"] as const).map((m) => (
           <View key={m} style={estilos.fila}>
             <Text style={estilos.filaTexto}>{NOMBRE_MODO[m]}</Text>
@@ -260,7 +260,7 @@ export default function PantallaPomodoro() {
             </View>
           </View>
         ))}
-        <Text style={estilos.ayuda}>Every 4th pomodoro you get a long break.</Text>
+        <Text style={estilos.ayuda}>Cada cuatro pomodoros corresponde un descanso largo.</Text>
       </Tarjeta>
     </Pantalla>
   );

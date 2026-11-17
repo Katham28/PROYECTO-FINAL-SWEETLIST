@@ -37,45 +37,45 @@ export default function PantallaPrincipal() {
     <Pantalla>
       <Banner titulo="SweetList">
         <View style={estilos.insignia}>
-          <Text style={estilos.insigniaTexto}>By Alondra Martinez & Katia Carpio</Text>
+          <Text style={estilos.insigniaTexto}>Alondra Martinez & Katia Carpio & Isai Candelario</Text>
         </View>
       </Banner>
 
       {verBienvenida && (
         <Aviso onCerrar={() => setVerBienvenida(false)}>
-          <Text style={{ fontWeight: "bold" }}>Hello!</Text> Welcome to SweetList.
+          <Text style={{ fontWeight: "bold" }}>¡Hola!</Text> Te damos la bienvenida a SweetList.
         </Aviso>
       )}
 
       <Carrusel />
 
       <Tarjeta>
-        <Text style={estilos.seccion}>User Management</Text>
+        <Text style={estilos.seccion}>Gestión de usuarios</Text>
 
-        <Tarjeta titulo="Login">
+        <Tarjeta titulo="Iniciar sesión">
           <Campo
-            etiqueta="Username:"
+            etiqueta="Usuario:"
             value={usuario}
             onChangeText={setUsuario}
             autoCapitalize="none"
             autoCorrect={false}
           />
           <Campo
-            etiqueta="Password:"
+            etiqueta="Contraseña:"
             value={contrasena}
             onChangeText={setContrasena}
             secureTextEntry
             onSubmitEditing={iniciarSesion}
           />
-          <BotonRosa texto={cargando ? "..." : "SUBMIT"} onPress={iniciarSesion} />
+          <BotonRosa texto={cargando ? "Iniciando sesión…" : "Iniciar sesión"} onPress={iniciarSesion} />
           {error && <Text style={estilos.error}>{error}</Text>}
         </Tarjeta>
 
         <View style={{ height: 16 }} />
 
-        <Tarjeta titulo="Administration">
-          <BotonRosa texto="Create user" onPress={() => router.push("/crear-usuario")} />
-          <Text style={estilos.ayuda}>Create your own account</Text>
+        <Tarjeta titulo="Registro">
+          <BotonRosa texto="Crear cuenta" onPress={() => router.push("/crear-usuario")} />
+          <Text style={estilos.ayuda}>Crea tu propia cuenta</Text>
         </Tarjeta>
       </Tarjeta>
     </Pantalla>
@@ -84,7 +84,7 @@ export default function PantallaPrincipal() {
 
 const estilos = StyleSheet.create({
   insignia: { backgroundColor: "#6c757d", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
-  insigniaTexto: { color: colores.blanco, fontSize: 12, fontWeight: "bold" },
+  insigniaTexto: { color: colores.blanco, fontSize: 12, fontWeight: "bold", textAlign: "center", lineHeight: 18 },
   seccion: { fontSize: 28, fontWeight: "500", color: colores.texto, marginBottom: 12 },
   error: { color: "#dc3545", textAlign: "center", marginTop: 8 },
   ayuda: { color: "#6c757d", textAlign: "center", marginTop: 12 },

@@ -14,15 +14,17 @@ import {
 import { colores, degradadoRosa, sombraRosa } from "@/tema";
 
 /** Fondo rosa degradado con scroll, igual al body de p1.css. */
-export function Pantalla({ children }: { children: ReactNode }) {
+export function Pantalla({ children, footer }: { children: ReactNode; footer?: ReactNode }) {
   return (
     <LinearGradient colors={[colores.fondoArriba, colores.fondoAbajo]} style={{ flex: 1 }}>
       <ScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={estilos.contenido}
         keyboardShouldPersistTaps="handled"
       >
         {children}
       </ScrollView>
+      {footer}
     </LinearGradient>
   );
 }
@@ -102,11 +104,14 @@ export function Tarjeta({ children, titulo }: { children: ReactNode; titulo?: st
 }
 
 /** Botón píldora con degradado (.button). */
-export function BotonRosa({ texto, onPress }: { texto: string; onPress: () => void }) {
+export function BotonRosa({ texto, onPress, disabled = false }: { texto: string; onPress: () => void; disabled?: boolean }) {
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [estilos.botonContenedor, pressed && { transform: [{ scale: 1.05 }] }]}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      style={({ pressed }) => [estilos.botonContenedor, disabled && { opacity: 0.45 }, pressed && !disabled && { transform: [{ scale: 1.05 }] }]}
     >
       <LinearGradient
         colors={degradadoRosa}

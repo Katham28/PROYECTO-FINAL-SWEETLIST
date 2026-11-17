@@ -1,14 +1,13 @@
 import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCallback, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { CalendarioMes } from "@/components/CalendarioMes";
+import Calendario from "@/components/calendario";
 import {
   Aviso,
   Banner,
-  BotonRosa,
-  Campo,
-  Etiqueta,
   MiniBanner,
   Opcion,
   Pantalla,
@@ -20,7 +19,7 @@ import { exportarRespaldo } from "@/exportar";
 import { colores } from "@/tema";
 
 export default function MenuPrincipal() {
-  const { usuarioId = "", usuario = "user" } = useLocalSearchParams<{ usuarioId?: string; usuario?: string }>();
+  const { usuarioId = "", usuario = "usuario" } = useLocalSearchParams<{ usuarioId?: string; usuario?: string }>();
 
   const [tareas, setTareas] = useState<Tarea[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
@@ -31,13 +30,8 @@ export default function MenuPrincipal() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Quick Add Task
-  const [titulo, setTitulo] = useState("");
-  const [descripcion, setDescripcion] = useState("");
-  const [fecha, setFecha] = useState("");
-  const [tagNuevo, setTagNuevo] = useState("");
-  const [listaNueva, setListaNueva] = useState("");
-  const [agregada, setAgregada] = useState(false);
+  const [frase, setFrase] = useState("");
+  const insets = useSafeAreaInsets();
 
   const mostrarError = (e: unknown) => setError(e instanceof Error ? e.message : "Error");
 
@@ -50,19 +44,19 @@ export default function MenuPrincipal() {
         return;
       }
       let vigente = true;
-      Promise.all([api.tareas(usuarioId), api.tags(usuarioId), api.listas(usuarioId)])
-        .then(([ts, tg, ls]) => {
+      Promise.all([api.tareas(usuarioId), api.tags(usuarioId), api.listas(usuarioId), api.usuario(usuarioId)])
+        .then(([ts, tg, ls, perfil]) => {
           if (!vigente) return;
           // Incluye tags y listas que usan las tareas aunque no estén creados, para que no queden ocultas.
           const nombresTags = [...new Set([...tg.map((t) => t.nombre), ...ts.map((t) => t.tag)])];
           const nombresListas = [...new Set([...ls.map((l) => l.nombre), ...ts.map((t) => t.lista)])];
+          setFrase(perfil.frase.trim());
+          setError(null);
           setTareas(ts);
           setTags(tg);
           setListas(nombresListas);
           setTagsActivos(nombresTags);
           setListasActivas(nombresListas);
-          setTagNuevo((v) => v || tg[0]?.nombre || "");
-          setListaNueva((v) => v || nombresListas[0] || "General");
         })
         .catch((e) => vigente && setError(e instanceof Error ? e.message : "Error"))
         .finally(() => vigente && setCargando(false));
@@ -74,43 +68,12 @@ export default function MenuPrincipal() {
 
   const colorDeTag = (nombre: string) => tags.find((t) => t.nombre === nombre)?.color ?? "#cccccc";
   const nombresTags = [...new Set([...tags.map((t) => t.nombre), ...tareas.map((t) => t.tag)])];
-  const opcionesLista = listas.length ? listas : ["General"];
+  const opcionesLista = listas;
 
   const alternar = (lista: string[], valor: string) =>
     lista.includes(valor) ? lista.filter((v) => v !== valor) : [...lista, valor];
 
   const visibles = tareas.filter((t) => tagsActivos.includes(t.tag) && listasActivas.includes(t.lista));
-
-  const agregarTarea = async () => {
-    if (!titulo.trim()) return;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
-      setError("Due Date must be YYYY-MM-DD.");
-      return;
-    }
-    try {
-      const nueva = await api.crearTarea(usuarioId, {
-        titulo: titulo.trim(),
-        descripcion: descripcion.trim(),
-        fecha,
-        tag: tagNuevo,
-        lista: listaNueva || "General",
-        hecha: false,
-      });
-      setTareas((ts) => [...ts, nueva].sort((a, b) => a.fecha.localeCompare(b.fecha)));
-      if (!listas.includes(nueva.lista)) {
-        setListas((ls) => [...ls, nueva.lista]);
-        setListasActivas((ls) => [...ls, nueva.lista]);
-      }
-      if (!tagsActivos.includes(nueva.tag)) setTagsActivos((ts) => [...ts, nueva.tag]);
-      setTitulo("");
-      setDescripcion("");
-      setFecha("");
-      setError(null);
-      setAgregada(true);
-    } catch (e) {
-      mostrarError(e);
-    }
-  };
 
   const alternarHecha = async (t: Tarea) => {
     setTareas((ts) => ts.map((x) => (x.id === t.id ? { ...x, hecha: !t.hecha } : x)));
@@ -153,25 +116,38 @@ export default function MenuPrincipal() {
   };
 
   return (
-    <Pantalla>
+    <Pantalla footer={
+      <View style={[estilos.pieFijo, { paddingBottom: Math.max(insets.bottom, 12), paddingLeft: Math.max(insets.left, 16), paddingRight: Math.max(insets.right, 16) }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Añadir tarea" onPress={() => router.push({ pathname: "/quick_add_task", params: { usuarioId, usuario } })}>
+          <LinearGradient colors={[colores.rosaClaro, colores.rosa]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={estilos.addTask}>
+            <Text style={estilos.addTaskTexto}>Añadir tarea</Text>
+          </LinearGradient>
+        </Pressable>
+      </View>
+    }>
       <Stack.Screen
         options={{
           headerRight: () => (
             <Pressable onPress={() => setConfirmarSalida(true)} hitSlop={8}>
-              <Text style={estilos.salir}>Log out</Text>
+              <Text style={estilos.salir}>Cerrar sesión</Text>
             </Pressable>
           ),
         }}
       />
 
-      <Banner titulo={`Welcome to SweetList, ${usuario}!`} />
+      <Banner titulo={`Te damos la bienvenida, ${usuario}`} />
+      <LinearGradient colors={["#fff8fc", "#ffe0ec"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={estilos.motivacion}>
+        <Text style={estilos.motivacionEtiqueta}>UN RECORDATORIO PARA TI</Text>
+        <Text style={estilos.motivacionFrase}>“{frase || "Un paso a la vez, también es avanzar."}”</Text>
+        <Text style={estilos.motivacionFirma}>con cariño, SweetList</Text>
+      </LinearGradient>
 
-      <MiniBanner titulo="General View" />
+      <MiniBanner titulo="Vista general" />
 
       <View style={estilos.acciones}>
-        <Accion texto="🍅 Pomodoro" onPress={() => abrirPomodoro()} />
-        <Accion texto={exportando === "json" ? "Exporting..." : "⬇ Backup JSON"} onPress={() => exportar("json")} />
-        <Accion texto={exportando === "pdf" ? "Exporting..." : "⬇ Backup PDF"} onPress={() => exportar("pdf")} />
+        <Accion texto="Pomodoro" onPress={() => abrirPomodoro()} />
+        <Accion texto={exportando === "json" ? "Exportando…" : "Respaldo JSON"} onPress={() => exportar("json")} />
+        <Accion texto={exportando === "pdf" ? "Exportando…" : "Respaldo PDF"} onPress={() => exportar("pdf")} />
       </View>
 
       {error && (
@@ -181,60 +157,26 @@ export default function MenuPrincipal() {
       )}
 
       <Tarjeta>
-        <Text style={estilos.subtitulo}>List selection</Text>
-        {opcionesLista.map((l) => (
-          <Opcion
-            key={l}
-            texto={l}
-            activa={listasActivas.includes(l)}
-            onPress={() => setListasActivas(alternar(listasActivas, l))}
-          />
-        ))}
-
-        <View style={estilos.separador} />
-
-        <Text style={estilos.subtitulo}>Filter by tag</Text>
-        {nombresTags.length === 0 && <Text style={estilos.vacio}>No tags</Text>}
-        {nombresTags.map((t) => (
-          <Opcion
-            key={t || "(none)"}
-            texto={t || "(no tag)"}
-            activa={tagsActivos.includes(t)}
-            onPress={() => setTagsActivos(alternar(tagsActivos, t))}
-          />
-        ))}
-
-        <View style={estilos.separador} />
-
-        <Text style={estilos.subtitulo}>Quick Add Task</Text>
-        {agregada && <Aviso onCerrar={() => setAgregada(false)}>Task added!</Aviso>}
-        <Campo etiqueta="Title:" value={titulo} onChangeText={setTitulo} />
-        <Campo etiqueta="Description:" value={descripcion} onChangeText={setDescripcion} />
-        <Campo
-          etiqueta="Due Date:"
-          value={fecha}
-          onChangeText={setFecha}
-          placeholder="YYYY-MM-DD"
-          keyboardType="numbers-and-punctuation"
-          maxLength={10}
-        />
-        <Etiqueta>Tag:</Etiqueta>
-        {tags.length === 0 ? (
-          <Text style={estilos.vacio}>No tags</Text>
-        ) : (
-          <Chips opciones={tags.map((t) => t.nombre)} valor={tagNuevo} onChange={setTagNuevo} />
-        )}
-        <Etiqueta>List:</Etiqueta>
-        <Chips opciones={opcionesLista} valor={listaNueva} onChange={setListaNueva} />
-        <BotonRosa texto="ADD" onPress={agregarTarea} />
+        <Text style={estilos.filtroTitulo}>Filtrar por lista</Text>
+        <View style={estilos.filtros}>
+          {opcionesLista.map((l) => <Filtro key={l} texto={l || "Sin lista"} activo={listasActivas.includes(l)} onPress={() => setListasActivas(alternar(listasActivas, l))} />)}
+        </View>
+        <Text style={estilos.filtroTitulo}>Filtrar por etiqueta</Text>
+        <View style={estilos.filtros}>
+          {!nombresTags.length && <Text style={estilos.vacio}>Sin etiquetas</Text>}
+          {nombresTags.map((t) => <Filtro key={t || "(none)"} texto={t || "Sin etiqueta"} color={colorDeTag(t)} activo={tagsActivos.includes(t)} onPress={() => setTagsActivos(alternar(tagsActivos, t))} />)}
+        </View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Editar nombres de listas y etiquetas" onPress={() => router.push({ pathname: "/tags_list_edit", params: { usuarioId, usuario } })} style={estilos.editarFiltros}>
+          <Text style={estilos.lapiz}>Editar</Text><Text style={estilos.editarTexto}>Editar listas y etiquetas</Text>
+        </Pressable>
       </Tarjeta>
 
       <Tarjeta>
-        <Text style={estilos.subtitulo}>Task View</Text>
+        <Text style={estilos.subtitulo}>Tareas</Text>
         {cargando ? (
-          <Text style={estilos.vacio}>Loading...</Text>
+          <Text style={estilos.vacio}>Cargando…</Text>
         ) : tareas.length === 0 ? (
-          <Text style={estilos.vacio}>No hay tasks</Text>
+          <Text style={estilos.vacio}>Todavía no hay tareas</Text>
         ) : visibles.length === 0 ? (
           <Text style={estilos.vacio}>No hay coincidencias</Text>
         ) : (
@@ -246,24 +188,31 @@ export default function MenuPrincipal() {
                 <View style={{ flex: 1, gap: 4 }}>
                   <View style={estilos.tareaCabecera}>
                     <Text style={[estilos.tareaTitulo, t.hecha && estilos.hecha]}>{t.titulo}</Text>
+                  </View>
+                  <View style={estilos.tareaHerramientas}>
                     {!!t.fecha && <Text style={estilos.tareaFecha}>{t.fecha}</Text>}
+                    <View style={estilos.iconosTarea}>
+                    <Pressable accessibilityRole="button" accessibilityLabel={`Editar tarea ${t.titulo}`} onPress={() => router.push({ pathname: "/task_edit", params: { usuarioId, usuario, tareaId: t.id } })} style={estilos.iconoTarea}>
+                      <Text style={estilos.lapiz}>Editar</Text>
+                    </Pressable>
                     {!t.hecha && (
-                      <Pressable onPress={() => abrirPomodoro(t.id)} hitSlop={8}>
-                        <Text style={estilos.play}>▶</Text>
+                      <Pressable accessibilityRole="button" accessibilityLabel={`Iniciar pomodoro de ${t.titulo}`} onPress={() => abrirPomodoro(t.id)} style={estilos.iconoTarea}>
+                        <Text style={estilos.play}>Iniciar</Text>
                       </Pressable>
                     )}
-                    <Pressable onPress={() => borrarTarea(t)} hitSlop={8}>
+                    <Pressable accessibilityRole="button" accessibilityLabel={`Borrar tarea ${t.titulo}`} onPress={() => borrarTarea(t)} style={estilos.iconoTarea}>
                       <Text style={estilos.borrar}>✕</Text>
                     </Pressable>
+                    </View>
                   </View>
                   {!!t.descripcion && <Text style={estilos.tareaDescripcion}>{t.descripcion}</Text>}
-                  <View style={{ flexDirection: "row", gap: 6 }}>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
                     {!!t.tag && <Text style={[estilos.insignia, { backgroundColor: `${color}dd` }]}>{t.tag}</Text>}
-                    <Text style={[estilos.insignia, { backgroundColor: "#e0e0e0", color: "#555" }]}>{t.lista}</Text>
+                    <Text style={[estilos.insignia, { backgroundColor: "#e0e0e0", color: "#555" }]}>{t.lista || "Sin lista"}</Text>
                   </View>
                   {(t.pomodoros ?? 0) > 0 && (
                     <Text style={estilos.tomates}>
-                      🍅 {t.pomodoros} pomodoro{t.pomodoros === 1 ? "" : "s"} · {tiempoBonito(t.segundos_invertidos)}
+                      {t.pomodoros} pomodoro{t.pomodoros === 1 ? "" : "s"} · {tiempoBonito(t.segundos_invertidos)}
                     </Text>
                   )}
                 </View>
@@ -273,28 +222,27 @@ export default function MenuPrincipal() {
         )}
       </Tarjeta>
 
-      <MiniBanner titulo="Calendar View" />
-
-      <Tarjeta>
-        <CalendarioMes
-          eventos={tareas
-            .filter((t) => t.fecha)
-            .map((t) => ({ id: t.id, titulo: t.titulo, fecha: t.fecha, color: colorDeTag(t.tag) }))}
-        />
-      </Tarjeta>
+      <Calendario tareas={tareas} tags={tags} />
 
       <Ventana
         visible={confirmarSalida}
-        titulo="You are about to log out."
-        mensaje="Are you sure?"
+        titulo="Cerrar sesión"
+        mensaje="¿Quieres cerrar la sesión?"
         onCerrar={() => setConfirmarSalida(false)}
         botones={[
-          { texto: "Cancel", onPress: () => setConfirmarSalida(false) },
-          { texto: "Yes", peligro: true, onPress: cerrarSesion },
+          { texto: "Cancelar", onPress: () => setConfirmarSalida(false) },
+          { texto: "Sí", peligro: true, onPress: cerrarSesion },
         ]}
       />
     </Pantalla>
   );
+}
+
+function Filtro({ texto, activo, onPress, color }: { texto: string; activo: boolean; onPress: () => void; color?: string }) {
+  return <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: activo }} onPress={onPress} style={[estilos.filtro, activo && estilos.filtroActivo]}>
+    {color && <View style={[estilos.puntoTag, { backgroundColor: color }]} />}
+    <Text style={[estilos.filtroTexto, activo && estilos.filtroTextoActivo]}>{texto}</Text>
+  </Pressable>;
 }
 
 function Accion({ texto, onPress }: { texto: string; onPress: () => void }) {
@@ -302,27 +250,6 @@ function Accion({ texto, onPress }: { texto: string; onPress: () => void }) {
     <Pressable onPress={onPress} style={({ pressed }) => [estilos.accion, pressed && { opacity: 0.7 }]}>
       <Text style={estilos.accionTexto}>{texto}</Text>
     </Pressable>
-  );
-}
-
-/** Selector de una opción en forma de píldoras (reemplaza al <select>). */
-function Chips({
-  opciones,
-  valor,
-  onChange,
-}: {
-  opciones: string[];
-  valor: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <View style={estilos.chips}>
-      {opciones.map((o) => (
-        <Pressable key={o} onPress={() => onChange(o)} style={[estilos.chip, valor === o && estilos.chipActivo]}>
-          <Text style={[estilos.chipTexto, valor === o && { color: colores.blanco }]}>{o}</Text>
-        </Pressable>
-      ))}
-    </View>
   );
 }
 
@@ -345,7 +272,20 @@ const estilos = StyleSheet.create({
   tareaCabecera: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
   tareaTitulo: { fontWeight: "bold", color: colores.texto, fontSize: 15, flexShrink: 1 },
   hecha: { textDecorationLine: "line-through", opacity: 0.6 },
-  tareaFecha: { color: "#6c757d", fontSize: 12, marginLeft: "auto" },
+  tareaFecha: { color: "#6c757d", fontSize: 12 },
+  tareaHerramientas: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 4 },
+  iconosTarea: { flexDirection: "row", alignItems: "center", marginLeft: "auto" },
+  iconoTarea: { minWidth: 44, minHeight: 44, justifyContent: "center", alignItems: "center" },
+  filtroTitulo: { color: colores.texto, fontWeight: "600", fontSize: 14, marginTop: 4 },
+  filtros: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 6 },
+  filtro: { minHeight: 44, maxWidth: "100%", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: colores.borde, backgroundColor: colores.fondoInput, flexDirection: "row", alignItems: "center", gap: 5 },
+  filtroActivo: { backgroundColor: "#fff0f6", borderColor: colores.rosa },
+  filtroTexto: { color: colores.textoSuave, fontSize: 12, flexShrink: 1 },
+  filtroTextoActivo: { color: "#b52f61", fontWeight: "600" },
+  puntoTag: { width: 8, height: 8, borderRadius: 4 },
+  editarFiltros: { alignSelf: "flex-end", flexDirection: "row", alignItems: "center", gap: 5, minHeight: 44, paddingHorizontal: 8 },
+  editarTexto: { color: colores.rosa, fontSize: 12, fontWeight: "600" },
+  lapiz: { color: colores.rosa, fontSize: 13, fontWeight: "600" },
   borrar: { color: "#dc3545", fontWeight: "bold", fontSize: 16 },
   play: { color: colores.rosa, fontWeight: "bold", fontSize: 15 },
   tomates: { color: "#ff6b6b", fontSize: 12, fontWeight: "bold" },
@@ -369,15 +309,11 @@ const estilos = StyleSheet.create({
     borderRadius: 6,
     overflow: "hidden",
   },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 6, marginBottom: 10 },
-  chip: {
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: 15,
-    borderWidth: 2,
-    borderColor: colores.borde,
-    backgroundColor: colores.fondoInput,
-  },
-  chipActivo: { backgroundColor: colores.rosa, borderColor: colores.rosa },
-  chipTexto: { color: colores.texto, fontSize: 14 },
+  pieFijo: { backgroundColor: "#fff8fc", paddingTop: 12, borderTopWidth: 1, borderTopColor: colores.borde },
+  addTask: { minHeight: 54, alignItems: "center", justifyContent: "center", borderRadius: 22, boxShadow: "0px 4px 14px rgba(255,79,139,0.22)" },
+  addTaskTexto: { color: colores.blanco, fontSize: 19, fontWeight: "700", letterSpacing: 0.6 },
+  motivacion: { borderRadius: 22, padding: 20, borderWidth: 1, borderColor: "#ffd1e1", gap: 10, boxShadow: "0px 4px 16px rgba(255,79,139,0.08)" },
+  motivacionEtiqueta: { fontSize: 10, letterSpacing: 2, color: "#bd5b7d", fontWeight: "700" },
+  motivacionFrase: { color: "#973e60", fontSize: 21, fontStyle: "italic", lineHeight: 30 },
+  motivacionFirma: { color: "#bd7893", fontSize: 12, alignSelf: "flex-end" },
 });

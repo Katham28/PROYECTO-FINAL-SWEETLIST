@@ -1,20 +1,42 @@
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import type { Tag, Tarea } from "@/api";
+import { MiniBanner, Tarjeta } from "@/components/ui";
 import { aTextoFecha } from "@/datos/ejemplo";
 import { colores } from "@/tema";
 
-export type EventoCalendario = { id: string; titulo: string; fecha: string; color: string };
+type EventoCalendario = { id: string; titulo: string; fecha: string; color: string };
 
 const MESES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
-const DIAS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DIAS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 const MAX_POR_DIA = 2;
 
+/** Sección incrustada: transforma las tareas y resuelve los colores sin consultar otra vez la API. */
+export default function Calendario({ tareas, tags }: { tareas: Tarea[]; tags: Tag[] }) {
+  const coloresPorTag = new Map(tags.map((tag) => [tag.nombre, tag.color]));
+  const eventos: EventoCalendario[] = tareas
+    .filter((tarea) => tarea.fecha)
+    .map((tarea) => ({
+      id: tarea.id,
+      titulo: tarea.titulo,
+      fecha: tarea.fecha,
+      color: coloresPorTag.get(tarea.tag) ?? "#cccccc",
+    }));
+
+  return (
+    <>
+      <MiniBanner titulo="Calendario" />
+      <Tarjeta><CalendarioMes eventos={eventos} /></Tarjeta>
+    </>
+  );
+}
+
 /** Vista mensual sencilla (equivalente a FullCalendar dayGridMonth). */
-export function CalendarioMes({ eventos }: { eventos: EventoCalendario[] }) {
+function CalendarioMes({ eventos }: { eventos: EventoCalendario[] }) {
   const [mes, setMes] = useState(() => {
     const hoy = new Date();
     return new Date(hoy.getFullYear(), hoy.getMonth(), 1);

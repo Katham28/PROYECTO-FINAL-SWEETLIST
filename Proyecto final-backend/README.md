@@ -26,6 +26,7 @@ fastapi dev main.py --host 0.0.0.0 --port 8000
 | Método | Ruta | Qué hace |
 |---|---|---|
 | POST | `/api/usuarios` | Crear usuario (201) |
+| GET | `/api/usuarios/disponibilidad?usuario=katia` | Devuelve `{"disponible": true}` sin exponer datos personales |
 | POST | `/api/login` | Login → devuelve el usuario (401 si falla) |
 | GET | `/api/usuarios` | Listar usuarios |
 | GET / PATCH / DELETE | `/api/usuarios/{id}` | Ver / editar / borrar usuario (borra también sus tareas, tags y listas) |
@@ -47,10 +48,10 @@ fastapi dev main.py --host 0.0.0.0 --port 8000
 Crear usuario:
 ```json
 {
-  "usuario": "katia", "contrasena": "1234",
-  "nombre": "Katia", "primer_apellido": "Carpio",
+  "usuario": "katia", "contrasena": "mi clave 123", "confirmar_contrasena": "mi clave 123",
+  "nombre": "Katia", "apellidos": "Carpio",
   "cumpleanos": "2004-05-10", "color": "#ff4f8b",
-  "genero": "FEMALE", "estilo": "Light", "frase": "¡Tú puedes!",
+  "genero": "FEMALE", "frase": "¡Tú puedes!",
   "lista_default": true, "tags_default": true
 }
 ```
@@ -93,3 +94,14 @@ La app usa `src/api.ts`. Por defecto busca el backend en la misma PC donde corre
 EXPO_PUBLIC_API_URL=http://192.168.1.50:8000
 ```
 Si el celular no conecta, permite el puerto 8000 en el Firewall de Windows.
+
+
+## Registro y validación
+El formulario solicita nombre(s), apellido(s), cumpleaños opcional, color, género, usuario, contraseña,
+confirmación, listas/etiquetas predeterminadas y frase opcional. Ya no solicita estilo.
+Los nombres aceptan letras Unicode, acentos, espacios, apóstrofes y guiones.
+Usuarios: de 3 a 50 caracteres (`a-z`, números, `.`, `_`, `-`), normalizados a minúsculas.
+La disponibilidad se comprueba tras 450 ms sin escribir; el POST vuelve a comprobarla y el índice único evita duplicados concurrentes.
+Contraseñas nuevas: de 8 a 128 caracteres, no solo espacios; deben coincidir. La confirmación nunca se guarda.
+Cumpleaños: entre 1900 y hoy. El servidor repite las validaciones.
+Los perfiles antiguos se presentan con nombres y apellidos unificados; sus contraseñas actuales siguen funcionando.

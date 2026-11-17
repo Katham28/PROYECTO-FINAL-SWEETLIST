@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "HelloWorldAppAppAppApp",
+    "name": "SweetList",
     "slug": "HelloWorldAppAppAppApp",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -8,7 +8,13 @@
     "scheme": "helloworldappappappapp",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "infoPlist": {
+        "CFBundleDevelopmentRegion": "es",
+        "CFBundleLocalizations": [
+          "es"
+        ]
+      }
     },
     "android": {
       "package": "com.equipokai.cybercorp",
@@ -20,10 +26,6 @@
       },
       "predictiveBackGestureEnabled": false
     },
-    "web": {
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
-    },
     "plugins": [
       "expo-router",
       [
@@ -34,11 +36,19 @@
           "imageWidth": 76
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      "expo-font",
+      "expo-image",
+      "expo-status-bar",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "platforms": [
+      "android",
+      "ios"
+    ]
   }
 }

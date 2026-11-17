@@ -1,4 +1,6 @@
-from fastapi import APIRouter, HTTPException, Response
+import re
+
+from fastapi import APIRouter, HTTPException, Query, Response
 from pymongo.errors import DuplicateKeyError
 
 import db
@@ -25,9 +27,22 @@ async def buscar_usuario(usuario_id: str) -> dict:
     return doc
 
 
+def filtro_usuario(usuario: str) -> dict:
+    # Se conserva el acceso a cuentas anteriores que tienen mayúsculas.
+    return {"usuario": {"$regex": "^" + re.escape(usuario.strip()) + "$", "$options": "i"}}
+
+
+@router.get("/usuarios/disponibilidad")
+async def disponibilidad_usuario(usuario: str = Query(min_length=3, max_length=50, pattern=r"^[A-Za-z0-9_.-]+$")):
+    existe = await db.usuarios.find_one(filtro_usuario(usuario), {"_id": 1})
+    return {"disponible": existe is None}
+
+
 @router.post("/usuarios", response_model=Usuario, status_code=201)
 async def crear_usuario(datos: UsuarioCrear):
-    doc = datos.model_dump(mode="json", exclude={"contrasena", "lista_default", "tags_default"})
+    if await db.usuarios.find_one(filtro_usuario(datos.usuario), {"_id": 1}):
+        raise HTTPException(409, "Ese nombre de usuario ya existe")
+    doc = datos.model_dump(mode="json", exclude={"contrasena", "confirmar_contrasena", "lista_default", "tags_default"})
     doc["usuario"] = doc["usuario"].strip()
     doc["contrasena_hash"] = hashear(datos.contrasena)
     try:
@@ -36,10 +51,9 @@ async def crear_usuario(datos: UsuarioCrear):
         raise HTTPException(409, "Ese nombre de usuario ya existe")
 
     uid = res.inserted_id
-    if datos.tags_default:
-        await db.tags.insert_many([{**t, "usuario_id": uid} for t in TAGS_DEFAULT])
-    if datos.lista_default:
-        await db.listas.insert_many([{"nombre": n, "usuario_id": uid} for n in LISTAS_DEFAULT])
+    # Se incluyen siempre para nuevas cuentas, aunque un cliente antiguo envíe false.
+    await db.tags.insert_many([{**t, "usuario_id": uid} for t in TAGS_DEFAULT])
+    await db.listas.insert_many([{"nombre": n, "usuario_id": uid} for n in LISTAS_DEFAULT])
 
     doc["_id"] = uid
     return db.a_json(doc)
@@ -47,7 +61,7 @@ async def crear_usuario(datos: UsuarioCrear):
 
 @router.post("/login", response_model=Usuario)
 async def login(datos: Login):
-    doc = await db.usuarios.find_one({"usuario": datos.usuario.strip()})
+    doc = await db.usuarios.find_one(filtro_usuario(datos.usuario))
     if not doc or not verificar(datos.contrasena, doc["contrasena_hash"]):
         raise HTTPException(401, "Usuario o contraseña incorrectos")
     return db.a_json(doc)
@@ -69,6 +83,12 @@ async def editar_usuario(usuario_id: str, datos: UsuarioEditar):
     cambios = datos.model_dump(mode="json", exclude_unset=True)
     if "contrasena" in cambios:
         cambios["contrasena_hash"] = hashear(cambios.pop("contrasena"))
+    if "nombre" in cambios or "apellidos" in cambios:
+        # Al guardar el perfil unificado, evita que vuelva a agregarse el segundo nombre viejo.
+        anterior = await buscar_usuario(usuario_id)
+        cambios.setdefault("nombre", Usuario.model_validate(db.a_json(anterior)).nombre)
+        cambios.setdefault("apellidos", Usuario.model_validate(db.a_json(anterior)).apellidos)
+        cambios.update(segundo_nombre="", primer_apellido="", segundo_apellido="")
     if cambios:
         await db.usuarios.update_one({"_id": db.oid(usuario_id)}, {"$set": cambios})
     return db.a_json(await buscar_usuario(usuario_id))

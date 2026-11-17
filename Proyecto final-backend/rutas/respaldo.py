@@ -6,6 +6,7 @@ from datetime import date, datetime, timezone
 from fastapi import APIRouter, Response
 
 import db
+from modelos import Usuario
 from pdf import generar_pdf
 from rutas.usuarios import buscar_usuario
 
@@ -35,7 +36,7 @@ async def armar_respaldo(usuario_id: str) -> dict:
         "app": "SweetList",
         "version": 1,
         "fecha_respaldo": datetime.now(timezone.utc).isoformat(),
-        "usuario": _limpio(usuario),  # a_json ya quita la contraseña
+        "usuario": Usuario.model_validate(db.a_json(usuario)).model_dump(mode="json"),
         "tags": await todos(db.tags, "nombre"),
         "listas": await todos(db.listas, "nombre"),
         "tareas": tareas,

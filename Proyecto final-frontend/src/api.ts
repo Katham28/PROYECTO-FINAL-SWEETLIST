@@ -1,6 +1,6 @@
 // Cliente de la API REST del backend (FastAPI + MongoDB, carpeta backend/).
 import Constants from "expo-constants";
-import { Platform } from "react-native";
+import { mensajeHttp, mensajeValidacion } from "@/mensajesApi";
 
 /**
  * Dirección del backend:
@@ -11,9 +11,6 @@ import { Platform } from "react-native";
 function urlBase() {
   const env = process.env.EXPO_PUBLIC_API_URL;
   if (env) return env.replace(/\/$/, "");
-  if (Platform.OS === "web" && typeof window !== "undefined") {
-    return `http://${window.location.hostname}:8000`;
-  }
   const host = Constants.expoConfig?.hostUri?.split(":")[0] ?? "localhost";
   return `http://${host}:8000`;
 }
@@ -21,20 +18,16 @@ function urlBase() {
 export const API_URL = urlBase();
 
 export type Genero = "MALE" | "FEMALE" | "OTHER";
-export type Estilo = "Light" | "Dark" | "Colored";
 
 export type Usuario = {
   id: string;
   usuario: string;
   nombre: string;
-  segundo_nombre: string;
-  primer_apellido: string;
-  segundo_apellido: string;
+  apellidos: string;
   cumpleanos: string | null;
   color: string;
   genero: Genero;
   otro_genero: string;
-  estilo: Estilo;
   frase: string;
   pomodoro_enfoque_min: number;
   pomodoro_descanso_min: number;
@@ -49,6 +42,7 @@ export type DuracionesPomodoro = Pick<
 export type UsuarioNuevo = Omit<Usuario, "id" | "cumpleanos" | keyof DuracionesPomodoro> & {
   cumpleanos?: string | null;
   contrasena: string;
+  confirmar_contrasena: string;
   lista_default: boolean;
   tags_default: boolean;
 };
@@ -86,23 +80,24 @@ export class ErrorApi extends Error {
   }
 }
 
-async function pedir<T>(metodo: string, ruta: string, cuerpo?: unknown): Promise<T> {
+async function pedir<T>(metodo: string, ruta: string, cuerpo?: unknown, signal?: AbortSignal): Promise<T> {
   let res: Response;
   try {
     res = await fetch(API_URL + ruta, {
       method: metodo,
+      signal,
       headers: cuerpo === undefined ? undefined : { "Content-Type": "application/json" },
       body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
     });
   } catch {
-    throw new ErrorApi(`Could not reach the server (${API_URL}).`, 0);
+    throw new ErrorApi(`No se pudo conectar con el servidor (${API_URL}).`, 0);
   }
   if (res.status === 204) return undefined as T;
   const datos = await res.json().catch(() => null);
   if (!res.ok) {
     const d = datos?.detail;
-    const mensaje = typeof d === "string" ? d : Array.isArray(d) ? d.map((e) => e.msg).join(". ") : res.statusText;
-    throw new ErrorApi(mensaje || `Error ${res.status}`, res.status);
+    const mensaje = typeof d === "string" && !["Not Found", "Internal Server Error", "Method Not Allowed", "Unauthorized", "Forbidden"].includes(d) ? d : Array.isArray(d) ? d.map(mensajeValidacion).join(" ") : mensajeHttp(res.status);
+    throw new ErrorApi(mensaje || mensajeHttp(res.status), res.status);
   }
   return datos as T;
 }
@@ -111,11 +106,14 @@ const u = (id: string) => `/api/usuarios/${encodeURIComponent(id)}`;
 
 export const api = {
   login: (usuario: string, contrasena: string) => pedir<Usuario>("POST", "/api/login", { usuario, contrasena }),
+  disponibilidadUsuario: (usuario: string, signal?: AbortSignal) =>
+    pedir<{ disponible: boolean }>("GET", `/api/usuarios/disponibilidad?usuario=${encodeURIComponent(usuario)}`, undefined, signal),
   crearUsuario: (datos: UsuarioNuevo) => pedir<Usuario>("POST", "/api/usuarios", datos),
   usuario: (id: string) => pedir<Usuario>("GET", u(id)),
   editarUsuario: (id: string, cambios: Partial<DuracionesPomodoro>) => pedir<Usuario>("PATCH", u(id), cambios),
 
   tareas: (uid: string) => pedir<Tarea[]>("GET", `${u(uid)}/tareas`),
+  tarea: (uid: string, id: string) => pedir<Tarea>("GET", `${u(uid)}/tareas/${encodeURIComponent(id)}`),
   crearTarea: (uid: string, t: TareaNueva) => pedir<Tarea>("POST", `${u(uid)}/tareas`, t),
   editarTarea: (uid: string, id: string, cambios: Partial<TareaNueva>) =>
     pedir<Tarea>("PATCH", `${u(uid)}/tareas/${id}`, cambios),
@@ -123,6 +121,13 @@ export const api = {
 
   tags: (uid: string) => pedir<Tag[]>("GET", `${u(uid)}/tags`),
   listas: (uid: string) => pedir<Lista[]>("GET", `${u(uid)}/listas`),
+  borrarLista: (uid: string, id: string) => pedir<void>("DELETE", `${u(uid)}/listas/${encodeURIComponent(id)}`),
+  borrarTag: (uid: string, id: string) => pedir<void>("DELETE", `${u(uid)}/tags/${encodeURIComponent(id)}`),
+  crearLista: (uid: string, nombre: string) => pedir<Lista>("POST", `${u(uid)}/listas`, { nombre }),
+  crearTag: (uid: string, nombre: string, color: string) => pedir<Tag>("POST", `${u(uid)}/tags`, { nombre, color }),
+  editarLista: (uid: string, id: string, nombre: string) => pedir<Lista>("PATCH", `${u(uid)}/listas/${encodeURIComponent(id)}`, { nombre }),
+  editarTag: (uid: string, id: string, cambios: Partial<Pick<Tag, "nombre" | "color">>) =>
+    pedir<Tag>("PATCH", `${u(uid)}/tags/${encodeURIComponent(id)}`, cambios),
 
   registrarPomodoro: (uid: string, p: PomodoroNuevo) => pedir<Pomodoro>("POST", `${u(uid)}/pomodoros`, p),
 
