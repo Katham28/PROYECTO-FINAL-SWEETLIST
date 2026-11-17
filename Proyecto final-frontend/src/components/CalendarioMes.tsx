@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { aTextoFecha } from "@/datos/ejemplo";
 import { colores } from "@/tema";
 
-export type EventoCalendario = { id: number; titulo: string; fecha: string; color: string };
+export type EventoCalendario = { id: string; titulo: string; fecha: string; color: string };
 
 const MESES = [
   "January", "February", "March", "April", "May", "June",

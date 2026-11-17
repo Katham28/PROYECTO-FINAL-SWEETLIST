@@ -2,6 +2,7 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { api, type Estilo, type Genero } from "@/api";
 import {
   Aviso,
   Banner,
@@ -16,8 +17,6 @@ import {
 } from "@/components/ui";
 import { colores } from "@/tema";
 
-type Genero = "MALE" | "FEMALE" | "OTHER";
-type Estilo = "Light" | "Dark" | "Colored";
 
 const PALETA = ["#ff4f8b", "#ff7eb3", "#e83e8c", "#6f42c1", "#007bff", "#20c997", "#28a745", "#ffc107", "#fd7e14", "#000000"];
 
@@ -41,9 +40,10 @@ export default function CrearUsuario() {
 
   const [error, setError] = useState<string | null>(null);
   const [creado, setCreado] = useState(false);
+  const [cargando, setCargando] = useState(false);
 
-  // Sin backend todavía: solo validaciones locales.
-  const enviar = () => {
+  const enviar = async () => {
+    if (cargando) return;
     if (!usuario.trim() || !contrasena) {
       setError("Username and password are required.");
     } else if (contrasena !== confirmacion) {
@@ -51,8 +51,31 @@ export default function CrearUsuario() {
     } else if (cumpleanos && !/^\d{4}-\d{2}-\d{2}$/.test(cumpleanos)) {
       setError("Birthday must be YYYY-MM-DD.");
     } else {
-      setError(null);
-      setCreado(true);
+      setCargando(true);
+      try {
+        await api.crearUsuario({
+          usuario: usuario.trim(),
+          contrasena,
+          nombre: nombre.trim(),
+          segundo_nombre: segundoNombre.trim(),
+          primer_apellido: primerApellido.trim(),
+          segundo_apellido: segundoApellido.trim(),
+          cumpleanos: cumpleanos || null,
+          color,
+          genero,
+          otro_genero: genero === "OTHER" ? otroGenero.trim() : "",
+          estilo,
+          frase: frase.trim(),
+          lista_default: listaDefault,
+          tags_default: tagsDefault,
+        });
+        setError(null);
+        setCreado(true);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Error");
+      } finally {
+        setCargando(false);
+      }
     }
   };
 
@@ -133,7 +156,7 @@ export default function CrearUsuario() {
 
         <Campo etiqueta="Motivational phrase:" value={frase} onChangeText={setFrase} multiline numberOfLines={4} />
 
-        <BotonRosa texto="SUBMIT" onPress={enviar} />
+        <BotonRosa texto={cargando ? "..." : "SUBMIT"} onPress={enviar} />
       </Tarjeta>
 
       <Ventana

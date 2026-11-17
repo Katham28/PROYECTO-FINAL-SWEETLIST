@@ -25,6 +25,7 @@ export default function RootLayout() {
       >
         <Stack.Screen name="index" options={{ title: "SweetList-Main" }} />
         <Stack.Screen name="crear-usuario" options={{ title: "SweetList-Users" }} />
+        <Stack.Screen name="pomodoro" options={{ title: "SweetList-Pomodoro" }} />
         <Stack.Screen
           name="menu"
           options={{ title: "SweetList", headerBackVisible: false, gestureEnabled: false }}

@@ -1,5 +1,5 @@
-import { router, Stack, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useCallback, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { CalendarioMes } from "@/components/CalendarioMes";
@@ -15,51 +15,136 @@ import {
   Tarjeta,
   Ventana,
 } from "@/components/ui";
-import { listasEjemplo, tagsEjemplo, tareasEjemplo, type Tarea } from "@/datos/ejemplo";
+import { api, tiempoBonito, type Tag, type Tarea } from "@/api";
+import { exportarRespaldo } from "@/exportar";
 import { colores } from "@/tema";
 
 export default function MenuPrincipal() {
-  const { usuario = "user" } = useLocalSearchParams<{ usuario?: string }>();
+  const { usuarioId = "", usuario = "user" } = useLocalSearchParams<{ usuarioId?: string; usuario?: string }>();
 
-  const [tareas, setTareas] = useState<Tarea[]>(tareasEjemplo);
-  const [listasActivas, setListasActivas] = useState<string[]>(listasEjemplo);
-  const [tagsActivos, setTagsActivos] = useState<string[]>(tagsEjemplo.map((t) => t.nombre));
+  const [tareas, setTareas] = useState<Tarea[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [listas, setListas] = useState<string[]>([]);
+  const [listasActivas, setListasActivas] = useState<string[]>([]);
+  const [tagsActivos, setTagsActivos] = useState<string[]>([]);
   const [confirmarSalida, setConfirmarSalida] = useState(false);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Quick Add Task
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [fecha, setFecha] = useState("");
-  const [tagNuevo, setTagNuevo] = useState(tagsEjemplo[0].nombre);
-  const [listaNueva, setListaNueva] = useState(listasEjemplo[0]);
+  const [tagNuevo, setTagNuevo] = useState("");
+  const [listaNueva, setListaNueva] = useState("");
   const [agregada, setAgregada] = useState(false);
 
-  const colorDeTag = (nombre: string) =>
-    tagsEjemplo.find((t) => t.nombre === nombre)?.color ?? "#cccccc";
+  const mostrarError = (e: unknown) => setError(e instanceof Error ? e.message : "Error");
+
+  // Carga tareas, tags y listas del usuario desde el backend.
+  // useFocusEffect: se vuelve a cargar al regresar del Pomodoro (para ver los contadores nuevos).
+  useFocusEffect(
+    useCallback(() => {
+      if (!usuarioId) {
+        router.replace("/");
+        return;
+      }
+      let vigente = true;
+      Promise.all([api.tareas(usuarioId), api.tags(usuarioId), api.listas(usuarioId)])
+        .then(([ts, tg, ls]) => {
+          if (!vigente) return;
+          // Incluye tags y listas que usan las tareas aunque no estén creados, para que no queden ocultas.
+          const nombresTags = [...new Set([...tg.map((t) => t.nombre), ...ts.map((t) => t.tag)])];
+          const nombresListas = [...new Set([...ls.map((l) => l.nombre), ...ts.map((t) => t.lista)])];
+          setTareas(ts);
+          setTags(tg);
+          setListas(nombresListas);
+          setTagsActivos(nombresTags);
+          setListasActivas(nombresListas);
+          setTagNuevo((v) => v || tg[0]?.nombre || "");
+          setListaNueva((v) => v || nombresListas[0] || "General");
+        })
+        .catch((e) => vigente && setError(e instanceof Error ? e.message : "Error"))
+        .finally(() => vigente && setCargando(false));
+      return () => {
+        vigente = false;
+      };
+    }, [usuarioId]),
+  );
+
+  const colorDeTag = (nombre: string) => tags.find((t) => t.nombre === nombre)?.color ?? "#cccccc";
+  const nombresTags = [...new Set([...tags.map((t) => t.nombre), ...tareas.map((t) => t.tag)])];
+  const opcionesLista = listas.length ? listas : ["General"];
 
   const alternar = (lista: string[], valor: string) =>
     lista.includes(valor) ? lista.filter((v) => v !== valor) : [...lista, valor];
 
   const visibles = tareas.filter((t) => tagsActivos.includes(t.tag) && listasActivas.includes(t.lista));
 
-  const agregarTarea = () => {
+  const agregarTarea = async () => {
     if (!titulo.trim()) return;
-    setTareas([
-      ...tareas,
-      {
-        id: Date.now(),
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+      setError("Due Date must be YYYY-MM-DD.");
+      return;
+    }
+    try {
+      const nueva = await api.crearTarea(usuarioId, {
         titulo: titulo.trim(),
         descripcion: descripcion.trim(),
         fecha,
         tag: tagNuevo,
-        lista: listaNueva,
+        lista: listaNueva || "General",
         hecha: false,
-      },
-    ]);
-    setTitulo("");
-    setDescripcion("");
-    setFecha("");
-    setAgregada(true);
+      });
+      setTareas((ts) => [...ts, nueva].sort((a, b) => a.fecha.localeCompare(b.fecha)));
+      if (!listas.includes(nueva.lista)) {
+        setListas((ls) => [...ls, nueva.lista]);
+        setListasActivas((ls) => [...ls, nueva.lista]);
+      }
+      if (!tagsActivos.includes(nueva.tag)) setTagsActivos((ts) => [...ts, nueva.tag]);
+      setTitulo("");
+      setDescripcion("");
+      setFecha("");
+      setError(null);
+      setAgregada(true);
+    } catch (e) {
+      mostrarError(e);
+    }
+  };
+
+  const alternarHecha = async (t: Tarea) => {
+    setTareas((ts) => ts.map((x) => (x.id === t.id ? { ...x, hecha: !t.hecha } : x)));
+    try {
+      await api.editarTarea(usuarioId, t.id, { hecha: !t.hecha });
+    } catch (e) {
+      setTareas((ts) => ts.map((x) => (x.id === t.id ? { ...x, hecha: t.hecha } : x)));
+      mostrarError(e);
+    }
+  };
+
+  const [exportando, setExportando] = useState<"json" | "pdf" | null>(null);
+  const exportar = async (formato: "json" | "pdf") => {
+    if (exportando) return;
+    setExportando(formato);
+    try {
+      await exportarRespaldo(usuarioId, usuario, formato);
+    } catch (e) {
+      mostrarError(e);
+    } finally {
+      setExportando(null);
+    }
+  };
+
+  const abrirPomodoro = (tareaId?: string) =>
+    router.push({ pathname: "/pomodoro", params: tareaId ? { usuarioId, tareaId } : { usuarioId } });
+
+  const borrarTarea = async (t: Tarea) => {
+    try {
+      await api.borrarTarea(usuarioId, t.id);
+      setTareas((ts) => ts.filter((x) => x.id !== t.id));
+    } catch (e) {
+      mostrarError(e);
+    }
   };
 
   const cerrarSesion = () => {
@@ -83,9 +168,21 @@ export default function MenuPrincipal() {
 
       <MiniBanner titulo="General View" />
 
+      <View style={estilos.acciones}>
+        <Accion texto="🍅 Pomodoro" onPress={() => abrirPomodoro()} />
+        <Accion texto={exportando === "json" ? "Exporting..." : "⬇ Backup JSON"} onPress={() => exportar("json")} />
+        <Accion texto={exportando === "pdf" ? "Exporting..." : "⬇ Backup PDF"} onPress={() => exportar("pdf")} />
+      </View>
+
+      {error && (
+        <Aviso error onCerrar={() => setError(null)}>
+          {error}
+        </Aviso>
+      )}
+
       <Tarjeta>
         <Text style={estilos.subtitulo}>List selection</Text>
-        {listasEjemplo.map((l) => (
+        {opcionesLista.map((l) => (
           <Opcion
             key={l}
             texto={l}
@@ -97,12 +194,13 @@ export default function MenuPrincipal() {
         <View style={estilos.separador} />
 
         <Text style={estilos.subtitulo}>Filter by tag</Text>
-        {tagsEjemplo.map((t) => (
+        {nombresTags.length === 0 && <Text style={estilos.vacio}>No tags</Text>}
+        {nombresTags.map((t) => (
           <Opcion
-            key={t.nombre}
-            texto={t.nombre}
-            activa={tagsActivos.includes(t.nombre)}
-            onPress={() => setTagsActivos(alternar(tagsActivos, t.nombre))}
+            key={t || "(none)"}
+            texto={t || "(no tag)"}
+            activa={tagsActivos.includes(t)}
+            onPress={() => setTagsActivos(alternar(tagsActivos, t))}
           />
         ))}
 
@@ -121,15 +219,21 @@ export default function MenuPrincipal() {
           maxLength={10}
         />
         <Etiqueta>Tag:</Etiqueta>
-        <Chips opciones={tagsEjemplo.map((t) => t.nombre)} valor={tagNuevo} onChange={setTagNuevo} />
+        {tags.length === 0 ? (
+          <Text style={estilos.vacio}>No tags</Text>
+        ) : (
+          <Chips opciones={tags.map((t) => t.nombre)} valor={tagNuevo} onChange={setTagNuevo} />
+        )}
         <Etiqueta>List:</Etiqueta>
-        <Chips opciones={listasEjemplo} valor={listaNueva} onChange={setListaNueva} />
+        <Chips opciones={opcionesLista} valor={listaNueva} onChange={setListaNueva} />
         <BotonRosa texto="ADD" onPress={agregarTarea} />
       </Tarjeta>
 
       <Tarjeta>
         <Text style={estilos.subtitulo}>Task View</Text>
-        {tareas.length === 0 ? (
+        {cargando ? (
+          <Text style={estilos.vacio}>Loading...</Text>
+        ) : tareas.length === 0 ? (
           <Text style={estilos.vacio}>No hay tasks</Text>
         ) : visibles.length === 0 ? (
           <Text style={estilos.vacio}>No hay coincidencias</Text>
@@ -138,23 +242,30 @@ export default function MenuPrincipal() {
             const color = colorDeTag(t.tag);
             return (
               <View key={t.id} style={[estilos.tarea, { backgroundColor: `${color}33`, borderLeftColor: colores.rosa }]}>
-                <Opcion
-                  texto=""
-                  activa={t.hecha}
-                  onPress={() =>
-                    setTareas(tareas.map((x) => (x.id === t.id ? { ...x, hecha: !x.hecha } : x)))
-                  }
-                />
+                <Opcion texto="" activa={t.hecha} onPress={() => alternarHecha(t)} />
                 <View style={{ flex: 1, gap: 4 }}>
                   <View style={estilos.tareaCabecera}>
                     <Text style={[estilos.tareaTitulo, t.hecha && estilos.hecha]}>{t.titulo}</Text>
                     {!!t.fecha && <Text style={estilos.tareaFecha}>{t.fecha}</Text>}
+                    {!t.hecha && (
+                      <Pressable onPress={() => abrirPomodoro(t.id)} hitSlop={8}>
+                        <Text style={estilos.play}>▶</Text>
+                      </Pressable>
+                    )}
+                    <Pressable onPress={() => borrarTarea(t)} hitSlop={8}>
+                      <Text style={estilos.borrar}>✕</Text>
+                    </Pressable>
                   </View>
                   {!!t.descripcion && <Text style={estilos.tareaDescripcion}>{t.descripcion}</Text>}
                   <View style={{ flexDirection: "row", gap: 6 }}>
-                    <Text style={[estilos.insignia, { backgroundColor: `${color}dd` }]}>{t.tag}</Text>
+                    {!!t.tag && <Text style={[estilos.insignia, { backgroundColor: `${color}dd` }]}>{t.tag}</Text>}
                     <Text style={[estilos.insignia, { backgroundColor: "#e0e0e0", color: "#555" }]}>{t.lista}</Text>
                   </View>
+                  {(t.pomodoros ?? 0) > 0 && (
+                    <Text style={estilos.tomates}>
+                      🍅 {t.pomodoros} pomodoro{t.pomodoros === 1 ? "" : "s"} · {tiempoBonito(t.segundos_invertidos)}
+                    </Text>
+                  )}
                 </View>
               </View>
             );
@@ -183,6 +294,14 @@ export default function MenuPrincipal() {
         ]}
       />
     </Pantalla>
+  );
+}
+
+function Accion({ texto, onPress }: { texto: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [estilos.accion, pressed && { opacity: 0.7 }]}>
+      <Text style={estilos.accionTexto}>{texto}</Text>
+    </Pressable>
   );
 }
 
@@ -226,7 +345,20 @@ const estilos = StyleSheet.create({
   tareaCabecera: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
   tareaTitulo: { fontWeight: "bold", color: colores.texto, fontSize: 15, flexShrink: 1 },
   hecha: { textDecorationLine: "line-through", opacity: 0.6 },
-  tareaFecha: { color: "#6c757d", fontSize: 12 },
+  tareaFecha: { color: "#6c757d", fontSize: 12, marginLeft: "auto" },
+  borrar: { color: "#dc3545", fontWeight: "bold", fontSize: 16 },
+  play: { color: colores.rosa, fontWeight: "bold", fontSize: 15 },
+  tomates: { color: "#ff6b6b", fontSize: 12, fontWeight: "bold" },
+  acciones: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 8 },
+  accion: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    backgroundColor: colores.blanco,
+    borderWidth: 2,
+    borderColor: colores.rosa,
+  },
+  accionTexto: { color: colores.rosa, fontWeight: "bold", fontSize: 14 },
   tareaDescripcion: { color: "#6c757d", fontSize: 14 },
   insignia: {
     fontSize: 12,

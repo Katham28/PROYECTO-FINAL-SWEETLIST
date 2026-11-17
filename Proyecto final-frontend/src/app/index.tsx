@@ -2,6 +2,7 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
+import { api } from "@/api";
 import { Carrusel } from "@/components/Carrusel";
 import { Aviso, Banner, BotonRosa, Campo, Pantalla, Tarjeta } from "@/components/ui";
 import { colores } from "@/tema";
@@ -10,16 +11,26 @@ export default function PantallaPrincipal() {
   const [verBienvenida, setVerBienvenida] = useState(true);
   const [usuario, setUsuario] = useState("");
   const [contrasena, setContrasena] = useState("");
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [cargando, setCargando] = useState(false);
 
-  // Sin backend todavía: solo se pide que los campos no estén vacíos.
-  const iniciarSesion = () => {
+  const iniciarSesion = async () => {
+    if (cargando) return;
     if (!usuario.trim() || !contrasena) {
-      setError(true);
+      setError("Usuario o contraseña incorrectos.");
       return;
     }
-    setError(false);
-    router.replace({ pathname: "/menu", params: { usuario: usuario.trim() } });
+    setCargando(true);
+    try {
+      const u = await api.login(usuario.trim(), contrasena);
+      setError(null);
+      setContrasena("");
+      router.replace({ pathname: "/menu", params: { usuarioId: u.id, usuario: u.usuario } });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error");
+    } finally {
+      setCargando(false);
+    }
   };
 
   return (
@@ -56,8 +67,8 @@ export default function PantallaPrincipal() {
             secureTextEntry
             onSubmitEditing={iniciarSesion}
           />
-          <BotonRosa texto="SUBMIT" onPress={iniciarSesion} />
-          {error && <Text style={estilos.error}>Usuario o contraseña incorrectos.</Text>}
+          <BotonRosa texto={cargando ? "..." : "SUBMIT"} onPress={iniciarSesion} />
+          {error && <Text style={estilos.error}>{error}</Text>}
         </Tarjeta>
 
         <View style={{ height: 16 }} />
